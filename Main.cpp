@@ -149,6 +149,10 @@ struct vec3 {
 	float Length() const { return sqrtf(x * x + y * y + z * z); }
 
 	operator float*() { return &x; }
+	void SetUniform(unsigned int shaderProg, char* name) {
+		int loc = glGetUniformLocation(shaderProg, name);
+		glUniform3f(loc, x, y, z);
+	}
 };
 
 float dot(const vec3& v1, const vec3& v2) {
@@ -212,21 +216,6 @@ mat4 Rotate(float angle, float wx, float wy, float wz) {
 		resK.x, resK.y, resK.z, 0,
 		0, 0, 0, 1);
 }
-//mat4 Rotate(float angle, float wx, float wy, float wz) {
-//	return mat4(cosf(angle) + (1 - cosf(angle))*wx*wx, (1 - cosf(angle))*wx*wy + sinf(angle)*wz, (1 - cosf(angle))*wx*wz - sinf(angle)*wy, 0,
-//		(1 - cosf(angle))*wx*wy - sinf(angle)*wz, cosf(angle) + (1 - cosf(angle))*wy*wy, (1 - cosf(angle))*wy*wz + sinf(angle)*wx, 0,
-//		(1 - cosf(angle))*wx*wz + sinf(angle)*wy, (1 - cosf(angle))*wy*wz - sinf(angle)*wx, cosf(angle) + (1 - cosf(angle))*wz*wz, 0,
-//		0, 0, 0, 1);
-//}
-
-//mat4 Rotate(float angle, float wx, float wy, float wz) {
-//	float c = cosf(angle);
-//	float s = sinf(angle);
-//	return mat4(c*(1 - wx*wx) + wx*wx, wx*wy*(1 - c) + s*wz, wx*wz*(1 - c) - s*wy, 0,
-//		wy*wx*(1 - c) - s*wz, c*(1 - wy*wy) + wy*wy, wx*wz*(1 - c) + s*wx, 0,
-//		wz*wx*(1 - c) + s*wy, wz*wy*(1 - c) - s*wx, c*(1 - wz*wz) + wz*wz, 0,
-//		0, 0, 0, 1);
-//}
 
 mat4 Scale(float sx, float sy, float sz) {
 	return mat4(sx, 0, 0, 0,
@@ -239,6 +228,10 @@ mat4 Scale(float sx, float sy, float sz) {
 struct vec4 {
 	float v[4];
 
+	vec4(vec3 vec, float w) {
+		v[0] = vec.x; v[1] = vec.y; v[2] = vec.z; v[3] = w;
+	}
+
 	vec4(float x = 0, float y = 0, float z = 0, float w = 1) {
 		v[0] = x; v[1] = y; v[2] = z; v[3] = w;
 	}
@@ -250,6 +243,10 @@ struct vec4 {
 			for (int i = 0; i < 4; i++) result.v[j] += v[i] * mat.m[i][j];
 		}
 		return result;
+	}
+	void SetUniform(unsigned shaderProg, char * name) {
+		int loc = glGetUniformLocation(shaderProg, name);
+		glUniformMatrix4fv(loc, 1, GL_TRUE, &v[0]);
 	}
 };
 
@@ -350,9 +347,11 @@ public:
 		MVP.SetUniform(shaderProgram, "MVP");
 	}
 };
-
+Material diff(vec3(1, 1, 1), vec3(0.2, 0.3, 1), vec3(1, 1, 1), 40.0f);
 class PhongShader : public Shader {
 	const char * vsSrc = R"(
+	#version 330
+	precision highp float;
 	uniform mat4  MVP, M, Minv; // MVP, Model, Model-inverse
 	uniform vec4  wLiPos;       // pos of light source 
 	uniform vec3  wEye;         // pos of eye
@@ -375,6 +374,8 @@ class PhongShader : public Shader {
 )";
 
 	const char * fsSrc = R"(
+	#version 330
+	precision highp float;
 	uniform vec3 kd, ks, ka;// diffuse, specular, ambient ref
 	uniform vec3 La, Le;    // ambient and point source rad
 	uniform float shine;    // shininess for specular ref
@@ -403,7 +404,28 @@ public:
 	void Bind(RenderState& state) {
 		glUseProgram(shaderProgram);
 		mat4 MVP = state.M * state.V * state.P;
+		mat4 M = state.M;
+		mat4 Minv = state.Minv;
+		vec4 wLiPos = vec4(state.light.wLightPos,1.0f);
+		vec3 wEye = state.wEye;
 		MVP.SetUniform(shaderProgram, "MVP");
+		M.SetUniform(shaderProgram, "M");
+		Minv.SetUniform(shaderProgram, "Minv");
+		wLiPos.SetUniform(shaderProgram, "wLiPos");
+		wEye.SetUniform(shaderProgram, "wEye");
+		vec3 kd = state.material->kd;
+		vec3 ks = state.material->ks;
+		vec3 ka = state.material->ka;
+		vec3 La = state.light.La;
+		vec3 Le = state.light.Le;
+		float shine = state.material->shine;
+		kd.SetUniform(shaderProgram, "kd");
+		ks.SetUniform(shaderProgram, "ks");
+		ka.SetUniform(shaderProgram, "ka");
+		La.SetUniform(shaderProgram, "La");
+		Le.SetUniform(shaderProgram, "Le");
+		int loc = glGetUniformLocation(shaderProgram, "shine");
+		glUniform1f(loc, shine);
 	}
 };
 
@@ -523,7 +545,7 @@ public:
 		state.Minv = Translate(-pos.x, -pos.y, -pos.z) *
 			Rotate(-rotAngle, rotAxis.x, rotAxis.y, rotAxis.z) *
 			Scale(1 / scale.x, 1 / scale.y, 1 / scale.z);
-		//state.material = material; state.texture = texture;
+		state.material = material; state.texture = texture;
 		shader->Bind(state);
 		geometry->Draw();
 	}
@@ -576,20 +598,23 @@ void initMaterial(Material* m) {
 // handle of the shader program
 //unsigned int shaderProgram;
 Scene scene;
-Camera cam(vec3(0, 0, 60), vec3(0, 0, 0), vec3(0, 1, 0), 3.14f / 3, 1.0f, 2.0f, 100.0f);
-Light light(vec3(0.1, 0.1, 0.1), vec3(1, 1, 1), vec3(2, 2, 2));
-Material diff(vec3(0, 1, 0), vec3(1, 0, 0), vec3(1, 1, 1), 20.0f);
+Camera cam(vec3(0, 0, 40), vec3(0, 0, 0), vec3(0, 1, 0), 3.14f / 3, 1.0f, 2.0f, 100.0f);
+Light light(vec3(0.1, 0.1, 0.1), vec3(1, 1, 1), vec3(10, 0, 0));
+
 
 // Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
+
+	glEnable(GL_DEPTH_TEST); // z-buffer is on
+	glDisable(GL_CULL_FACE); // backface culling is off
 
 	//initCamera(&cam);
 	//initLight(&light);
 	//initMaterial(&diff);
 
 	Sphere* sphere = new Sphere(vec3(0, 0, 0), 5.0f);
-	ShadowShader* sshader = new ShadowShader();
+	PhongShader* sshader = new PhongShader();
 	SpecificSphere* specSphere = new SpecificSphere();
 
 	specSphere->shader = sshader;
@@ -604,8 +629,7 @@ void onInitialization() {
 	scene.light = light;
 	scene.objects.push_back(specSphere);
 
-	//glEnable(GL_DEPTH_TEST); // z-buffer is on
-	//glDisable(GL_CULL_FACE); // backface culling is off
+	
 }
 
 void onExit() {

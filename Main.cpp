@@ -443,7 +443,8 @@ public:
 	}
 };
 Material diff(vec3(1, 1, 1), vec3(0.2, 0.3, 1), vec3(1, 1, 1), 80.0f);
-Material snakeDiff(vec3(1, 1, 1), vec3(0.3, 1, 0.2), vec3(1, 1, 1), 50.0f);
+Material snakeDiff1(vec3(1, 1, 1), vec3(0.3, 1, 0.2), vec3(1, 1, 1), 80.0f);
+Material snakeDiff2(vec3(1, 1, 1), vec3(0.6, 1, 0.2), vec3(1, 1, 1), 80.0f);
 class PhongShader : public Shader {
 	const char * vsSrc = R"(
 	#version 330
@@ -599,11 +600,12 @@ class Snake : public ParamSurface {
 	CatmullRom* cr;
 public:
 	Snake(CatmullRom* cr) : cr(cr) {
-		radius = 4.0f;
+		radius = 2.0f;
 		Create(32, 32); // tessellation level
 	}
 
 	VertexData GenVertexData(float u, float v) {
+
 		VertexData vd;
 		vec4 r(0, 0, -1, 1);
 		r = r*Rotate(u*2*M_PI, 0, 1, 0);
@@ -722,8 +724,9 @@ void initMaterial(Material* m) {
 //unsigned int shaderProgram;
 Scene scene;
 Camera cam(vec3(0, 0, 40), vec3(0, 0, 0), vec3(0, 1, 0), 3.14f / 3, 1.0f, 2.0f, 100.0f);
-Light light(vec3(0.1, 0.1, 0.1), vec3(1, 1, 1), vec3(10, 10, 10));
-CatmullRom cr(vec3(0,-1,0),vec3(0,-1,-1));
+Light light(vec3(0.1, 0.1, 0.1), vec3(1, 1, 1), vec3(10, 10, 22));
+CatmullRom cr1(vec3(0,-1,0),vec3(0,-1,-1));
+CatmullRom cr2(vec3(0, -1, 0), vec3(0, -1, -1));
 //CatmullRom cr;
 
 
@@ -733,21 +736,42 @@ void onInitialization() {
 
 	glEnable(GL_DEPTH_TEST); // z-buffer is on
 	glDisable(GL_CULL_FACE); // backface culling is off
+	/*vec3 cps[6] = { vec3(-5, 23, 15),
+		vec3(-2, 15, 10),
+		vec3(-4, 10, 12),
+		vec3(-6, 8, 10),
+		vec3(-4, 5, 12),
+		vec3(-4, 0, 10) };
 
-	cr.addControlPoint(vec3(0,10,0), 0.0f);
-	cr.addControlPoint(vec3(3, 8, 0), 0.2f);
-	cr.addControlPoint(vec3(5, 6, 4), 0.4f);
-	cr.addControlPoint(vec3(2, 4, 1), 0.6f);
-	cr.addControlPoint(vec3(-2, 2, 3), 0.8f);
-	cr.addControlPoint(vec3(0, 0, 0), 1.0f);
+	for (int i = 0; i < 6; ++i) {
+		float t = -0.2;
+		cps[i].x += -3;
+		cr.addControlPoint(cps[i], t + 0.2);
+	}*/
+
+	cr1.addControlPoint(vec3(-7,23,15), 0.0f);
+	cr1.addControlPoint(vec3(-4, 15, 10), 0.2f);
+	cr1.addControlPoint(vec3(-6, 10, 12), 0.4f);
+	cr1.addControlPoint(vec3(-7, 8, 10), 0.6f);
+	cr1.addControlPoint(vec3(-7, 5, 12), 0.8f);
+	cr1.addControlPoint(vec3(-6, 0, 10), 1.0f);
+
+	cr2.addControlPoint(vec3(5, 23, 15), 0.0f);
+	cr2.addControlPoint(vec3(8, 15, 10), 0.2f);
+	cr2.addControlPoint(vec3(6, 10, 12), 0.4f);
+	cr2.addControlPoint(vec3(5, 8, 10), 0.6f);
+	cr2.addControlPoint(vec3(5, 5, 12), 0.8f);
+	cr2.addControlPoint(vec3(6, 0, 10), 1.0f);
 
 	Sphere* sphere = new Sphere(vec3(5, 0, 0), 5.0f);
 	Sphere* sphere2 = new Sphere(vec3(-5, 0, 0), 5.0f);
-	Snake* snake = new Snake(&cr);
+	Snake* snake1 = new Snake(&cr1);
+	Snake* snake2 = new Snake(&cr2);
 	PhongShader* pshader = new PhongShader();
 	SpecificSphere* specSphere = new SpecificSphere();
 	SpecificSphere* specSphere2 = new SpecificSphere();
-	SpecificSnake* specificSnake = new SpecificSnake();
+	SpecificSnake* specificSnake1 = new SpecificSnake();
+	SpecificSnake* specificSnake2 = new SpecificSnake();
 
 	specSphere->shader = pshader;
 	specSphere->material = &diff;
@@ -765,19 +789,28 @@ void onInitialization() {
 	specSphere2->rotAxis = vec3(0, 1, 0);
 	specSphere2->rotAngle = 0;
 
-	specificSnake->shader = pshader;
-	specificSnake->material = &snakeDiff;
-	specificSnake->geometry = snake;
-	specificSnake->scale = vec3(1, 1, 1);
-	specificSnake->pos = vec3(0, 0, 0);
-	specificSnake->rotAxis = vec3(0, 1, 0);
-	specificSnake->rotAngle = 0;
+	specificSnake1->shader = pshader;
+	specificSnake1->material = &snakeDiff1;
+	specificSnake1->geometry = snake1;
+	specificSnake1->scale = vec3(1, 1, 1);
+	specificSnake1->pos = vec3(0, 0, 0);
+	specificSnake1->rotAxis = vec3(0, 1, 0);
+	specificSnake1->rotAngle = 0;
+
+	specificSnake2->shader = pshader;
+	specificSnake2->material = &snakeDiff2;
+	specificSnake2->geometry = snake2;
+	specificSnake2->scale = vec3(1, 1, 1);
+	specificSnake2->pos = vec3(0, 0, 0);
+	specificSnake2->rotAxis = vec3(0, 1, 0);
+	specificSnake2->rotAngle = 0;
 
 	scene.camera = cam;
 	scene.light = light;
-	scene.objects.push_back(specSphere);
-	scene.objects.push_back(specSphere2);
-	scene.objects.push_back(specificSnake);
+	//scene.objects.push_back(specSphere);
+	//scene.objects.push_back(specSphere2);
+	scene.objects.push_back(specificSnake1);
+	scene.objects.push_back(specificSnake2);
 
 }
 

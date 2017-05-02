@@ -92,35 +92,6 @@ void checkLinking(unsigned int program) {
 	}
 }
 
-//// vertex shader in GLSL
-//const char *vertexSource = R"(
-//	uniform mat4 M, Minv, MVP;
-//	layout(location = 0) in vec3 vtxPos;
-//	layout(location = 1) in vec3 vtxNorm;
-//	out vec4 color;
-//	
-//	void main() {
-//		gl_Position = vec4(vtxPos, 1) * MVP;
-//		vec4 wPos = vec4(vtxPos, 1) * M;
-//		vec4 wNormal = Minv * vec4(vtxNorm, 0);
-//		color = Illumination(wPos, wNormal);
-//	}
-//)";
-//
-//
-//// fragment shader in GLSL
-//const char * fragmentSource = R"(
-//	#version 330
-//    precision highp float;
-//
-//	in vec3 color;				// variable input: interpolated color of vertex shader
-//	out vec4 fragmentColor;		// output that goes to the raster memory as told by glBindFragDataLocation
-//
-//	void main() {
-//		fragmentColor = vec4(color, 1); // extend RGB to RGBA
-//	}
-//)";
-
 struct vec3 {
 	float x, y, z;
 
@@ -244,9 +215,9 @@ struct vec4 {
 		}
 		return result;
 	}
-	void SetUniform(unsigned shaderProg, char * name) {
+	void SetUniform(unsigned int shaderProg, char * name) {
 		int loc = glGetUniformLocation(shaderProg, name);
-		glUniformMatrix4fv(loc, 1, GL_TRUE, &v[0]);
+		glUniform4f(loc, v[0], v[1], v[2], v[3]);
 	}
 };
 
@@ -347,7 +318,7 @@ public:
 		MVP.SetUniform(shaderProgram, "MVP");
 	}
 };
-Material diff(vec3(1, 1, 1), vec3(0.2, 0.3, 1), vec3(1, 1, 1), 40.0f);
+Material diff(vec3(1, 1, 1), vec3(0.2, 0.3, 1), vec3(1, 1, 1), 80.0f);
 class PhongShader : public Shader {
 	const char * vsSrc = R"(
 	#version 330
@@ -406,7 +377,7 @@ public:
 		mat4 MVP = state.M * state.V * state.P;
 		mat4 M = state.M;
 		mat4 Minv = state.Minv;
-		vec4 wLiPos = vec4(state.light.wLightPos,1.0f);
+		vec4 wLiPos = vec4(state.light.wLightPos.x, state.light.wLightPos.y, state.light.wLightPos.z, 1.0f);
 		vec3 wEye = state.wEye;
 		MVP.SetUniform(shaderProgram, "MVP");
 		M.SetUniform(shaderProgram, "M");
@@ -484,7 +455,7 @@ class Sphere : public ParamSurface {
 	float radius;
 public:
 	Sphere(vec3 c, float r) : center(c), radius(r) {
-		Create(64, 64); // tessellation level
+		Create(256, 256); // tessellation level
 	}
 
 	VertexData GenVertexData(float u, float v) {
@@ -599,7 +570,7 @@ void initMaterial(Material* m) {
 //unsigned int shaderProgram;
 Scene scene;
 Camera cam(vec3(0, 0, 40), vec3(0, 0, 0), vec3(0, 1, 0), 3.14f / 3, 1.0f, 2.0f, 100.0f);
-Light light(vec3(0.1, 0.1, 0.1), vec3(1, 1, 1), vec3(10, 0, 0));
+Light light(vec3(0.1, 0.1, 0.1), vec3(1, 1, 1), vec3(10, 10, 10));
 
 
 // Initialization, create an OpenGL context

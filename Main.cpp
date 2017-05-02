@@ -99,6 +99,8 @@ struct vec3 {
 
 	vec3 operator*(float a) const { return vec3(x * a, y * a, z * a); }
 
+	vec3 operator/(float a) const { return vec3(x / a, y / a, z / a); }
+
 	vec3 operator+(const vec3& v) const {
 		return vec3(x + v.x, y + v.y, z + v.z);
 	}
@@ -188,6 +190,13 @@ mat4 Rotate(float angle, float wx, float wy, float wz) {
 		0, 0, 0, 1);
 }
 
+//mat4 Rotate(float angle, float wx, float wy, float wz) {
+//	return mat4(cosf(angle) + (1 - cosf(angle))*wx*wx, (1 - cosf(angle))*wx*wy + sinf(angle)*wz, (1 - cosf(angle))*wx*wz - sinf(angle)*wy, 0,
+//		(1 - cosf(angle))*wx*wy - sinf(angle)*wz, cosf(angle) + (1 - cosf(angle))*wy*wy, (1 - cosf(angle))*wy*wz + sinf(angle)*wx, 0,
+//		(1 - cosf(angle))*wx*wz + sinf(angle)*wy, (1 - cosf(angle))*wy*wz - sinf(angle)*wx, cosf(angle) + (1 - cosf(angle))*wz*wz, 0,
+//		0, 0, 0, 1);
+//}
+
 mat4 Scale(float sx, float sy, float sz) {
 	return mat4(sx, 0, 0, 0,
 		0, sy, 0, 0,
@@ -220,6 +229,121 @@ struct vec4 {
 		glUniform4f(loc, v[0], v[1], v[2], v[3]);
 	}
 };
+
+class CatmullRom {
+	std::vector<vec3> cps;		// control points 
+	std::vector<float>  ts;	// parameter (knot) values
+	vec3 v0;
+	vec3 vn;
+
+	vec3 Hermite(vec3 p0, vec3 v0, float t0,
+		vec3 p1, vec3 v1, float t1,
+		float t) {
+		vec3 res, a0, a1, a2, a3;
+		a0 = p0;
+		a1 = v0;
+		a2 = (p1 - p0) * 3.0f / pow((t1 - t0), 2) - (v1 + v0 * 2.0f) / (t1 - t0);
+		a3 = (p0 - p1) * 2.0f / pow((t1 - t0), 3) + (v1 + v0) / pow((t1 - t0), 2);
+		float dt = t - t0;
+		res = a3*pow(dt, 3) + a2*pow(dt, 2) + a1*dt + a0;
+		return res;
+	}
+
+public:
+	CatmullRom(){}
+	CatmullRom(vec3 startV, vec3 endV) {
+		v0 = startV;
+		vn = endV;
+	}
+	void addControlPoint(vec3 cp, float t) {
+		cps.push_back(cp);
+		ts.push_back(t);
+	}
+
+	vec3 r(float t) {
+		for (int i = 0; i < cps.size() - 1; i++) {
+			if (ts[i] <= t && t <= ts[i + 1]) {
+				vec3 vi, vii;
+				if (i == 0 || i == cps.size() - 2) {
+					if (i == 0) {
+						vi = v0;
+						vii = ((cps[i + 2] - cps[i + 1]) / (ts[i + 2] - ts[i + 1]) + (cps[i + 1] - cps[i]) / (ts[i + 1] - ts[i]))*0.5f;
+					}
+					else if (i == cps.size() - 2) {
+						vi = ((cps[i + 1] - cps[i]) / (ts[i + 1] - ts[i]) + (cps[i] - cps[i - 1]) / (ts[i] - ts[i - 1]))*0.5f;
+						vii = vn;
+					}
+				}
+				else {
+					vi = ((cps[i + 1] - cps[i]) / (ts[i + 1] - ts[i]) + (cps[i] - cps[i - 1]) / (ts[i] - ts[i - 1]))*0.5f;
+					vii = ((cps[i + 2] - cps[i + 1]) / (ts[i + 2] - ts[i + 1]) + (cps[i + 1] - cps[i]) / (ts[i + 1] - ts[i]))*0.5f;
+				}
+				return Hermite(cps[i], vi, ts[i], cps[i + 1], vii, ts[i + 1], t);
+				
+			}
+		}
+	}
+};
+
+//class CatmullRom {
+//	std::vector<vec3> cps;
+//	std::vector<float> ts;
+//
+//	vec3 hermite(vec3 p0, vec3 v0, float t0,
+//		vec3 p1, vec3 v1, float t1,
+//		float t) const {
+//		vec3 a0 = p0;
+//		vec3 a1 = v0;
+//		vec3 a2 = (p1 - p0) * 3 / (t1 - t0) / (t1 - t0) - (v1 + v0 * 2) / (t1 - t0);
+//		vec3 a3 = (p0 - p1) * 2 / (t1 - t0) / (t1 - t0) / (t1 - t0) + (v1 + v0) / (t1 - t0) / (t1 - t0);
+//
+//		return a3*(t - t0)*(t - t0)*(t - t0) + a2*(t - t0)*(t - t0) + a1*(t - t0) + a0;
+//	}
+//
+//	vec3 v(int i) const {
+//		if (i == 0) {
+//			return (cps[i + 1] - cps[i]) / (ts[i + 1] - ts[i]);
+//		}
+//		if (i == ts.size() - 1) {
+//			return (cps[i] - cps[i - 1]) / (ts[i] - ts[i - 1]);
+//		}
+//		return ((cps[i + 1] - cps[i]) / (ts[i + 1] - ts[i]) + (cps[i] - cps[i - 1]) / (ts[i] - ts[i - 1])) / 2;
+//	}
+//
+//public:
+//	void clear() {
+//		cps.clear();
+//		ts.clear();
+//	}
+//
+//	void addControlPoint(vec3 cp, float t) {
+//		cps.push_back(cp);
+//		ts.push_back(t);
+//	}
+//
+//	float getMinT() const {
+//		return ts[0];
+//	}
+//
+//	float getMaxT() const {
+//		return ts[ts.size() - 1];
+//	}
+//
+//	vec3 r(float t) const {
+//		while (ts[ts.size() - 1] < t) {
+//			t -= ts[ts.size() - 1];
+//		}
+//
+//		for (int i = 0; i < cps.size() - 1; ++i) {
+//			if (ts[i] <= t && t <= ts[i + 1]) {
+//				return hermite(cps[i], v(i), ts[i],
+//					cps[i + 1], v(i + 1), ts[i + 1],
+//					t);
+//			}
+//		}
+//		return vec3();
+//	}
+//};
 
 struct Material {
 	vec3 ka, kd, ks;
@@ -319,6 +443,7 @@ public:
 	}
 };
 Material diff(vec3(1, 1, 1), vec3(0.2, 0.3, 1), vec3(1, 1, 1), 80.0f);
+Material snakeDiff(vec3(1, 1, 1), vec3(0.3, 1, 0.2), vec3(1, 1, 1), 50.0f);
 class PhongShader : public Shader {
 	const char * vsSrc = R"(
 	#version 330
@@ -469,6 +594,29 @@ public:
 	}
 };
 
+class Snake : public ParamSurface {
+	float radius;
+	CatmullRom* cr;
+public:
+	Snake(CatmullRom* cr) : cr(cr) {
+		radius = 4.0f;
+		Create(32, 32); // tessellation level
+	}
+
+	VertexData GenVertexData(float u, float v) {
+		VertexData vd;
+		vec4 r(0, 0, -1, 1);
+		r = r*Rotate(u*2*M_PI, 0, 1, 0);
+		vd.normal = vec3(r.v[0], r.v[1], r.v[2]);
+		vd.position = vd.normal*radius + cr->r(v);
+		printf("%f  %f  %f\n", vd.normal.x, vd.normal.y, vd.normal.z);
+		printf("%f\n", radius);
+		printf("%f  %f  %f\n", cr->r(v).x, cr->r(v).y, cr->r(v).z);
+		vd.u = u; vd.v = v;
+		return vd;
+	}
+};
+
 struct Camera {
 	vec3  wEye, wLookat, wVup;
 	float fov, asp, fp, bp;
@@ -527,6 +675,10 @@ struct SpecificSphere : public Object {
 
 };
 
+struct SpecificSnake : public Object {
+
+};
+
 struct Scene {
 	Camera camera;
 	std::vector<Object *> objects;
@@ -571,6 +723,8 @@ void initMaterial(Material* m) {
 Scene scene;
 Camera cam(vec3(0, 0, 40), vec3(0, 0, 0), vec3(0, 1, 0), 3.14f / 3, 1.0f, 2.0f, 100.0f);
 Light light(vec3(0.1, 0.1, 0.1), vec3(1, 1, 1), vec3(10, 10, 10));
+CatmullRom cr(vec3(0,-1,0),vec3(0,-1,-1));
+//CatmullRom cr;
 
 
 // Initialization, create an OpenGL context
@@ -580,27 +734,51 @@ void onInitialization() {
 	glEnable(GL_DEPTH_TEST); // z-buffer is on
 	glDisable(GL_CULL_FACE); // backface culling is off
 
-	//initCamera(&cam);
-	//initLight(&light);
-	//initMaterial(&diff);
+	cr.addControlPoint(vec3(0,10,0), 0.0f);
+	cr.addControlPoint(vec3(3, 8, 0), 0.2f);
+	cr.addControlPoint(vec3(5, 6, 4), 0.4f);
+	cr.addControlPoint(vec3(2, 4, 1), 0.6f);
+	cr.addControlPoint(vec3(-2, 2, 3), 0.8f);
+	cr.addControlPoint(vec3(0, 0, 0), 1.0f);
 
-	Sphere* sphere = new Sphere(vec3(0, 0, 0), 5.0f);
-	PhongShader* sshader = new PhongShader();
+	Sphere* sphere = new Sphere(vec3(5, 0, 0), 5.0f);
+	Sphere* sphere2 = new Sphere(vec3(-5, 0, 0), 5.0f);
+	Snake* snake = new Snake(&cr);
+	PhongShader* pshader = new PhongShader();
 	SpecificSphere* specSphere = new SpecificSphere();
+	SpecificSphere* specSphere2 = new SpecificSphere();
+	SpecificSnake* specificSnake = new SpecificSnake();
 
-	specSphere->shader = sshader;
+	specSphere->shader = pshader;
 	specSphere->material = &diff;
 	specSphere->geometry = sphere;
 	specSphere->scale = vec3(1, 1, 1);
 	specSphere->pos = vec3(0, 0, 0);
-	specSphere->rotAxis = vec3(1, 1, 1);
+	specSphere->rotAxis = vec3(0, 1, 0);
 	specSphere->rotAngle = 0;
+
+	specSphere2->shader = pshader;
+	specSphere2->material = &diff;
+	specSphere2->geometry = sphere2;
+	specSphere2->scale = vec3(1, 1, 1);
+	specSphere2->pos = vec3(0, 0, 0);
+	specSphere2->rotAxis = vec3(0, 1, 0);
+	specSphere2->rotAngle = 0;
+
+	specificSnake->shader = pshader;
+	specificSnake->material = &snakeDiff;
+	specificSnake->geometry = snake;
+	specificSnake->scale = vec3(1, 1, 1);
+	specificSnake->pos = vec3(0, 0, 0);
+	specificSnake->rotAxis = vec3(0, 1, 0);
+	specificSnake->rotAngle = 0;
 
 	scene.camera = cam;
 	scene.light = light;
 	scene.objects.push_back(specSphere);
+	scene.objects.push_back(specSphere2);
+	scene.objects.push_back(specificSnake);
 
-	
 }
 
 void onExit() {
